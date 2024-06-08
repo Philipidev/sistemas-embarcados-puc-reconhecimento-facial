@@ -66,7 +66,8 @@ Antes de começar, certifique-se de ter as seguintes bibliotecas instaladas no A
 ## Interface de Configuração de Usuários
 A interface web do sistema pode ser acessada pelo IP mostrado no monitor serial. Nela, você verá opções para configurar os usuários permitidos:
 
-![Interface de Configuração de Usuários](https://prnt.sc/oMiMuZN1hxf_)
+![Interface de Configuração de Usuários]
+https://prnt.sc/oMiMuZN1hxf_
 
 - **Stream Camera:** Coloca a câmera no modo de transmissão ao vivo.
 - **Detect Faces:** Ativa o modo de detecção de faces.
@@ -78,4 +79,5 @@ A interface web do sistema pode ser acessada pelo IP mostrado no monitor serial.
 - Substitua corretamente o arquivo `huge_app.csv` conforme as instruções para garantir o funcionamento adequado do código.
 
 ## Imagem de Configuração do Tools
-![Configuração do Tools](https://prnt.sc/oYXDQeXhMJXi)
+![Configuração do Tools]
+https://prnt.sc/oYXDQeXhMJXi
