@@ -1,6 +1,4 @@
-#include <Adafruit_PN532.h>
 #include <ArduinoWebsockets.h>
-#include <Wire.h>
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
@@ -15,13 +13,14 @@ const char* password = "190600phi";
 
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
+#define INICIAR_COM_WEB_SERVER 0 //0 para iniciar offline sem precisar de internet
 
 // Select camera model
 #define CAMERA_MODEL_WROVER_KIT
 //#define CAMERA_MODEL_ESP_EYE
 //#define CAMERA_MODEL_M5STACK_PSRAM
 //#define CAMERA_MODEL_M5STACK_WIDE
-// #define CAMERA_MODEL_AI_THINKER
+//#define CAMERA_MODEL_AI_THINKER
 #include "camera_pins.h"
 
 using namespace websockets;
@@ -32,10 +31,7 @@ camera_fb_t * fb = NULL;
 long current_millis;
 long last_detected_millis = 0;
 
-#define led_verde_e_buzzer 2 // pin 12 can also be used
-// #define pin_scl 22
-// #define pin_sda 21
-// #define led_verde_e_buzzer 23
+#define led_verde_e_buzzer 2 
 
 unsigned long door_opened_millis = 0;
 long interval = 5000;           // open lock for ... milliseconds
@@ -43,7 +39,6 @@ bool face_recognised = false;
 
 void app_facenet_main();
 void app_httpserver_init();
-Adafruit_PN532 nfc(pin_sda, pin_scl);
 
 typedef struct
 {
@@ -97,7 +92,7 @@ typedef struct
 
 httpd_resp_value st_name;
 
-void setup() {// Inicializando o módulo PN532
+void setup() {
   Serial.begin(115200);
   Serial.println();
 
@@ -159,43 +154,27 @@ void setup() {// Inicializando o módulo PN532
   s->set_hmirror(s, 1);
 #endif
 
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  if (INICIAR_COM_WEB_SERVER){
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("");
+    Serial.println("WiFi connected");
+
+    app_httpserver_init();
+    socket_server.listen(82);
+
+    Serial.print("Camera Ready! Use 'http://");
+    Serial.print(WiFi.localIP());
+    Serial.println("' to connect");
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
-
-  app_httpserver_init();
+  else{
+    Serial.println("Iniciando sem Web Server");
+  }
+  
   app_facenet_main();
-  socket_server.listen(82);
-
-  Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("' to connect");
-
-
-
-  //   nfc.begin();
-  // uint32_t versiondata = nfc.getFirmwareVersion();
-  // if (!versiondata) {
-  //   Serial.println("Não foi possível encontrar PN53x.   ");
-  //   Serial.println(versiondata);
-  //   //while (1); // Não continua se não encontrar o módulo
-  // }
-  // else{
-  // // Mostra os detalhes do firmware
-  //   Serial.println("Encontrado chip PN5");
-  //   Serial.println((versiondata>>24) & 0xFF, HEX);
-  //   Serial.print("Firmware ver. ");
-  //   Serial.print((versiondata>>16) & 0xFF, DEC);
-  //   Serial.print('.');
-  //   Serial.println((versiondata>>8) & 0xFF, DEC);
-  //   // Configura o módulo para ser um leitor RFID
-  //   nfc.SAMConfig();
-  // }
- 
 }
 
 static esp_err_t index_handler(httpd_req_t *req) {
@@ -257,33 +236,6 @@ static esp_err_t delete_all_faces(WebsocketsClient &client)
   client.send("delete_faces");
 }
 
-void reconhecerCartaNFC(){
-  Serial.println("aqui");
-  uint32_t versiondata = nfc.getFirmwareVersion();
-  Serial.println(versiondata);
-  if(versiondata > 0){
-    Serial.println("aqui2");
-    uint8_t success;
-    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
-    uint8_t uidLength;
-
-    // Espera por um cartão NFC
-    success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
-
-    if (success) {
-      Serial.println("Encontrado um cartão!");
-      Serial.print("UID Length: ");Serial.print(uidLength, DEC);Serial.println(" bytes");
-      Serial.print("UID Value: ");
-      for (uint8_t i=0; i < uidLength; i++) {
-        Serial.print(" 0x");Serial.print(uid[i], HEX);
-      }
-      Serial.println("");
-      
-      digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
-    }
-  }
-}
-
 void handle_message(WebsocketsClient &client, WebsocketsMessage msg)
 {
   if (msg.data() == "stream") {
@@ -325,7 +277,15 @@ void open_door(WebsocketsClient &client) {
   }
 }
 
-void loop() {
+void open_door_sem_client() {
+  if (digitalRead(led_verde_e_buzzer) == LOW) {
+    digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
+    Serial.println("Door Unlocked");
+    door_opened_millis = millis(); // time relay closed and door opened
+  }
+}
+
+void iniciarReconhecimentoComCameraWebServer() {
   auto client = socket_server.accept();
   client.onMessage(handle_message);
   dl_matrix3du_t *image_matrix = dl_matrix3du_alloc(1, 320, 240, 3);
@@ -334,77 +294,6 @@ void loop() {
 
   send_face_list(client);
   client.send("STREAMING");
-
-  // while (1) {;
-  //   //reconhecerCartaNFC();
-  //   g_state = START_RECOGNITION;
-
-  //   if (millis() - interval > door_opened_millis) { // current time - face recognised time > 5 secs
-  //     digitalWrite(led_verde_e_buzzer, LOW); //open relay
-  //   }
-
-  //   fb = esp_camera_fb_get();
-
-  //   if (g_state == START_DETECT || g_state == START_ENROLL || g_state == START_RECOGNITION)
-  //   {
-  //     out_res.net_boxes = NULL;
-  //     out_res.face_id = NULL;
-
-  //     fmt2rgb888(fb->buf, fb->len, fb->format, out_res.image);
-
-  //     out_res.net_boxes = face_detect(image_matrix, &mtmn_config);
-
-  //     if (out_res.net_boxes)
-  //     {
-  //       if (align_face(out_res.net_boxes, image_matrix, aligned_face) == ESP_OK)
-  //       {
-
-  //         out_res.face_id = get_face_id(aligned_face);
-  //         last_detected_millis = millis();
-
-  //         if (g_state == START_ENROLL)
-  //         {
-  //           int left_sample_face = do_enrollment(&st_face_list, out_res.face_id);
-  //           char enrolling_message[64];
-  //           sprintf(enrolling_message, "SAMPLE NUMBER %d FOR %s", ENROLL_CONFIRM_TIMES - left_sample_face, st_name.enroll_name);
-  //           if (left_sample_face == 0)
-  //           {
-  //             ESP_LOGI(TAG, "Enrolled Face ID: %s", st_face_list.tail->id_name);
-  //             g_state = START_STREAM;
-  //             char captured_message[64];
-  //             sprintf(captured_message, "FACE CAPTURED FOR %s", st_face_list.tail->id_name);
-  //             face_id_node *head = st_face_list.head;
-  //             char add_face[64];
-  //             for (int i = 0; i < st_face_list.count; i++) // loop current faces
-  //             {
-  //               sprintf(add_face, "listface:%s", head->id_name);
-  //               head = head->next;
-  //             }
-  //           }
-  //         }
-  //         if (g_state == START_RECOGNITION  && (st_face_list.count > 0))
-  //         {
-  //           face_id_node *f = recognize_face_with_name(&st_face_list, out_res.face_id);
-  //           if (f)
-  //           {
-  //             char recognised_message[64];
-  //             sprintf(recognised_message, "DOOR OPEN FOR %s", f->id_name);
-  //             if (digitalRead(led_verde_e_buzzer) == LOW) {
-  //               digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
-  //               Serial.println("Door Unlocked");
-  //               door_opened_millis = millis(); // time relay closed and door opened
-  //             }
-  //           }
-  //         }
-  //         dl_matrix3d_free(out_res.face_id);
-  //       }
-
-  //     }
-
-  //   }
-  //   esp_camera_fb_return(fb);
-  //   fb = NULL;
-  // }
 
   while (client.available()) {
     client.poll();
@@ -489,7 +378,82 @@ void loop() {
 
     esp_camera_fb_return(fb);
     fb = NULL;
+  }
+}
 
-    //reconhecerCartaNFC();
+
+void iniciarApenasReconhecimento() {
+  dl_matrix3du_t *image_matrix = dl_matrix3du_alloc(1, 320, 240, 3);
+  http_img_process_result out_res = {0};
+  out_res.image = image_matrix->item;
+
+  while (1) {
+    if (millis() - interval > door_opened_millis) { // current time - face recognised time > 5 secs
+      digitalWrite(led_verde_e_buzzer, LOW); //open relay
+    }
+
+    fb = esp_camera_fb_get();
+
+    if (g_state == START_DETECT || g_state == START_ENROLL || g_state == START_RECOGNITION)
+    {
+      out_res.net_boxes = NULL;
+      out_res.face_id = NULL;
+
+      fmt2rgb888(fb->buf, fb->len, fb->format, out_res.image);
+
+      out_res.net_boxes = face_detect(image_matrix, &mtmn_config);
+
+      if (out_res.net_boxes)
+      {
+        if (align_face(out_res.net_boxes, image_matrix, aligned_face) == ESP_OK)
+        {
+
+          out_res.face_id = get_face_id(aligned_face);
+          last_detected_millis = millis();
+
+          if (g_state == START_ENROLL)
+          {
+            int left_sample_face = do_enrollment(&st_face_list, out_res.face_id);
+            char enrolling_message[64];
+            sprintf(enrolling_message, "SAMPLE NUMBER %d FOR %s", ENROLL_CONFIRM_TIMES - left_sample_face, st_name.enroll_name);
+            if (left_sample_face == 0)
+            {
+              ESP_LOGI(TAG, "Enrolled Face ID: %s", st_face_list.tail->id_name);
+              g_state = START_STREAM;
+              char captured_message[64];
+              sprintf(captured_message, "FACE CAPTURED FOR %s", st_face_list.tail->id_name);
+            }
+          }
+
+          if (g_state == START_RECOGNITION  && (st_face_list.count > 0))
+          {
+            face_id_node *f = recognize_face_with_name(&st_face_list, out_res.face_id);
+            if (f)
+            {
+              char recognised_message[64];
+              sprintf(recognised_message, "DOOR OPEN FOR %s", f->id_name);
+              open_door_sem_client();
+            }
+          }
+          dl_matrix3d_free(out_res.face_id);
+        }
+
+      }
+    }
+    esp_camera_fb_return(fb);
+    fb = NULL;
+  }
+}
+
+
+void loop() {
+  if(INICIAR_COM_WEB_SERVER){
+    //utilize para treinar as pessoas que vc quer reconhecer
+    iniciarReconhecimentoComCameraWebServer();
+  }
+  else{
+    //Requer já ter iniciado o WebServe e ter treinado as pessoas que quer que reconheça
+    g_state = START_RECOGNITION; 
+    iniciarApenasReconhecimento();
   }
 }
