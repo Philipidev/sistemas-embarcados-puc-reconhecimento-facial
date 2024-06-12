@@ -8,12 +8,12 @@
 #include "fr_forward.h"
 #include "fr_flash.h"
 
-const char* ssid = "philipicalt";
-const char* password = "190600phi";
+const char* ssid = "MPS3000";
+const char* password = "MPSenha2002";
 
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
-#define INICIAR_COM_WEB_SERVER 0 //0 para iniciar offline sem precisar de internet
+#define INICIAR_COM_WEB_SERVER 1 //0 para iniciar offline sem precisar de internet
 
 // Select camera model
 #define CAMERA_MODEL_WROVER_KIT
@@ -32,8 +32,10 @@ long current_millis;
 long last_detected_millis = 0;
 
 #define led_verde_e_buzzer 2 
+#define led_vermelho 32
 
 unsigned long door_opened_millis = 0;
+unsigned long false_detected_millis = 0;
 long interval = 5000;           // open lock for ... milliseconds
 bool face_recognised = false;
 
@@ -100,6 +102,10 @@ void setup() {
 
   digitalWrite(led_verde_e_buzzer, LOW);
   pinMode(led_verde_e_buzzer, OUTPUT);
+
+  
+  digitalWrite(led_vermelho, LOW);
+  pinMode(led_vermelho, OUTPUT);
 
 
   camera_config_t config;
@@ -274,6 +280,7 @@ void open_door(WebsocketsClient &client) {
     Serial.println("Door Unlocked");
     client.send("door_open");
     door_opened_millis = millis(); // time relay closed and door opened
+    digitalWrite(led_vermelho, LOW); 
   }
 }
 
@@ -282,6 +289,7 @@ void open_door_sem_client() {
     digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
     Serial.println("Door Unlocked");
     door_opened_millis = millis(); // time relay closed and door opened
+    digitalWrite(led_vermelho, LOW); 
   }
 }
 
@@ -300,6 +308,9 @@ void iniciarReconhecimentoComCameraWebServer() {
 
     if (millis() - interval > door_opened_millis) { // current time - face recognised time > 5 secs
       digitalWrite(led_verde_e_buzzer, LOW); //open relay
+    }
+    if (millis() - interval > false_detected_millis) { // current time - face recognised time > 5 secs
+      digitalWrite(led_vermelho, LOW); //open relay
     }
 
     fb = esp_camera_fb_get();
@@ -355,6 +366,8 @@ void iniciarReconhecimentoComCameraWebServer() {
             else
             {
               client.send("FACE NOT RECOGNISED");
+              digitalWrite(led_vermelho, HIGH); 
+              false_detected_millis = millis();
             }
           }
           dl_matrix3d_free(out_res.face_id);
@@ -433,6 +446,8 @@ void iniciarApenasReconhecimento() {
               char recognised_message[64];
               sprintf(recognised_message, "DOOR OPEN FOR %s", f->id_name);
               open_door_sem_client();
+              digitalWrite(led_vermelho, HIGH); 
+              false_detected_millis = millis();
             }
           }
           dl_matrix3d_free(out_res.face_id);
