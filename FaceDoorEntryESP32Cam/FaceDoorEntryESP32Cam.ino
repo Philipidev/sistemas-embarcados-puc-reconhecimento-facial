@@ -13,7 +13,7 @@ const char* password = "MPSenha2002";
 
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
-#define INICIAR_COM_WEB_SERVER 1 //0 para iniciar offline sem precisar de internet
+#define INICIAR_COM_WEB_SERVER 0 //0 para iniciar offline sem precisar de internet
 
 // Select camera model
 #define CAMERA_MODEL_WROVER_KIT
@@ -36,7 +36,7 @@ long last_detected_millis = 0;
 
 unsigned long door_opened_millis = 0;
 unsigned long false_detected_millis = 0;
-long interval = 5000;           // open lock for ... milliseconds
+long interval = 3000;           // open lock for ... milliseconds
 bool face_recognised = false;
 
 void app_facenet_main();
@@ -405,6 +405,10 @@ void iniciarApenasReconhecimento() {
       digitalWrite(led_verde_e_buzzer, LOW); //open relay
     }
 
+    if (millis() - interval > false_detected_millis) { // current time - face recognised time > 5 secs
+      digitalWrite(led_vermelho, LOW); //open relay
+    }
+
     fb = esp_camera_fb_get();
 
     if (g_state == START_DETECT || g_state == START_ENROLL || g_state == START_RECOGNITION)
@@ -446,6 +450,8 @@ void iniciarApenasReconhecimento() {
               char recognised_message[64];
               sprintf(recognised_message, "DOOR OPEN FOR %s", f->id_name);
               open_door_sem_client();
+            }
+            else {
               digitalWrite(led_vermelho, HIGH); 
               false_detected_millis = millis();
             }
