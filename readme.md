@@ -11,7 +11,7 @@ Este projeto implementa um sistema de controle de acesso usando duas placas ESP3
 
 ## Estrutura do Circuito
 
-![Circuito](./imgs/circuito.png)
+![Circuito](./imgs/circuito.jpg)
 
 É um circuito com dois ESP. Um ESP é o ESP responsável pelo NFC, que utiliza aquele que a gente já viu no REGIME ali. E esse ESP aqui é um ESP sem câmera, que é o ESP DEV KIT, que é o mais padrão utilizado. O outro ESP é o ESP-32 ROVER DEV, que tem um ESP-CAM nele. Esse circuito, quando a câmera não reconhece a pessoa ou o cartão lido no NFC não é reconhecido, a gente liga um LED vermelho. Quando é reconhecido na câmera ou quando o cartão NFC é reconhecido, ele liga um buzzer de sucesso, liga o LED verde e ativa o relay para poder abrir a fechadura do sistema.
 
