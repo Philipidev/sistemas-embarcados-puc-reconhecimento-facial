@@ -33,6 +33,7 @@ long last_detected_millis = 0;
 
 #define led_verde_e_buzzer 2 
 #define led_vermelho 32
+#define pin_relay 15
 
 unsigned long door_opened_millis = 0;
 unsigned long false_detected_millis = 0;
@@ -100,12 +101,15 @@ void setup() {
 
   Serial.setDebugOutput(true);
 
-  digitalWrite(led_verde_e_buzzer, LOW);
   pinMode(led_verde_e_buzzer, OUTPUT);
+  digitalWrite(led_verde_e_buzzer, LOW);
+
+  pinMode(pin_relay, OUTPUT);
+  digitalWrite(pin_relay, HIGH);
 
   
-  digitalWrite(led_vermelho, LOW);
   pinMode(led_vermelho, OUTPUT);
+  digitalWrite(led_vermelho, LOW);
 
 
   camera_config_t config;
@@ -277,6 +281,7 @@ void handle_message(WebsocketsClient &client, WebsocketsMessage msg)
 void open_door(WebsocketsClient &client) {
   if (digitalRead(led_verde_e_buzzer) == LOW) {
     digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
+    digitalWrite(pin_relay, LOW); //close (energise) relay so door unlocks
     Serial.println("Door Unlocked");
     client.send("door_open");
     door_opened_millis = millis(); // time relay closed and door opened
@@ -287,6 +292,7 @@ void open_door(WebsocketsClient &client) {
 void open_door_sem_client() {
   if (digitalRead(led_verde_e_buzzer) == LOW) {
     digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
+    digitalWrite(pin_relay, LOW); 
     Serial.println("Door Unlocked");
     door_opened_millis = millis(); // time relay closed and door opened
     digitalWrite(led_vermelho, LOW); 
@@ -308,9 +314,11 @@ void iniciarReconhecimentoComCameraWebServer() {
 
     if (millis() - interval > door_opened_millis) { // current time - face recognised time > 5 secs
       digitalWrite(led_verde_e_buzzer, LOW); //open relay
+      digitalWrite(pin_relay, HIGH); 
     }
     if (millis() - interval > false_detected_millis) { // current time - face recognised time > 5 secs
       digitalWrite(led_vermelho, LOW); //open relay
+      digitalWrite(pin_relay, HIGH); 
     }
 
     fb = esp_camera_fb_get();
@@ -403,10 +411,12 @@ void iniciarApenasReconhecimento() {
   while (1) {
     if (millis() - interval > door_opened_millis) { // current time - face recognised time > 5 secs
       digitalWrite(led_verde_e_buzzer, LOW); //open relay
+      digitalWrite(pin_relay, HIGH); 
     }
 
     if (millis() - interval > false_detected_millis) { // current time - face recognised time > 5 secs
       digitalWrite(led_vermelho, LOW); //open relay
+      digitalWrite(pin_relay, HIGH); 
     }
 
     fb = esp_camera_fb_get();

@@ -4,6 +4,7 @@
 
 #define pin_scl 22
 #define pin_sda 21
+#define pinRelay 5
 #define relay_pin_sucesso 23 // Escolha o pino GPIO para controlar a corrente
 #define relay_pin_negado 32 // Escolha o pino GPIO para controlar a corrente
 
@@ -53,23 +54,28 @@ void reconhecerCartaNFC() {
       if (isValidCard) {
         Serial.println("Cartão válido encontrado, liberando fechadura.");
         // Ativa o relé (ou corrente) no pino escolhido
+        digitalWrite(relay_pin_negado, LOW); // Garante que o relé esteja desligado
         digitalWrite(relay_pin_sucesso, HIGH); // Energiza o relé
+        digitalWrite(pinRelay, LOW); // Energiza o relé
         delay(1000); // Mantenha o relé ativado por 1 segundo (ajuste conforme necessário)
         digitalWrite(relay_pin_sucesso, LOW); // Desenergiza o relé
-        digitalWrite(relay_pin_negado, LOW); // Garante que o relé esteja desligado
+        digitalWrite(pinRelay, HIGH); // Energiza o relé
       } else {
         Serial.println("Cartão não autorizado.");
         digitalWrite(relay_pin_sucesso, LOW); // Garante que o relé esteja desligado
+        digitalWrite(pinRelay, HIGH); // Energiza o relé
         digitalWrite(relay_pin_negado, HIGH); // Garante que o relé esteja desligado
         delay(500); // Mantenha o relé ativado por 1 segundo (ajuste conforme necessário)
         digitalWrite(relay_pin_negado, LOW); // Garante que o relé esteja desligado
       }
     } else {
       digitalWrite(relay_pin_sucesso, LOW); // Garante que o relé esteja desligado se nenhum cartão for encontrado
+      digitalWrite(pinRelay, HIGH); // Energiza o relé
       digitalWrite(relay_pin_negado, LOW); // Garante que o relé esteja desligado
     }
   } else {
     digitalWrite(relay_pin_sucesso, LOW); // Garante que o relé esteja desligado se o módulo NFC não estiver disponível
+    digitalWrite(pinRelay, HIGH); // Energiza o relé
     digitalWrite(relay_pin_negado, LOW); // Garante que o relé esteja desligado
   }
 }
@@ -85,6 +91,9 @@ void setup() {
 
   pinMode(relay_pin_negado, OUTPUT);
   digitalWrite(relay_pin_negado, LOW); // Inicializa o relé como desligado
+
+  pinMode(pinRelay, OUTPUT);
+  digitalWrite(pinRelay, HIGH); // Inicializa o relé como desligado
 
   // Inicializa o módulo NFC
   nfc.begin();
