@@ -139,4 +139,129 @@ Defina o modo de inicialização:
 
 ---
 
+### Explicação dos Métodos
+
+#### `do_enrollment`
+
+```cpp
+static inline int do_enrollment(face_id_name_list *face_list, dl_matrix3d_t *new_id)
+{
+  ESP_LOGD(TAG, "START ENROLLING");
+  int left_sample_face = enroll_face_id_to_flash_with_name(face_list, new_id, st_name.enroll_name);
+  ESP_LOGD(TAG, "Face ID %s Enrollment: Sample %d",
+           st_name.enroll_name,
+           ENROLL_CONFIRM_TIMES - left_sample_face);
+  return left_sample_face;
+}
+```
+Este método é responsável por inscrever um novo rosto na lista de rostos reconhecidos. Ele grava o ID do rosto na memória flash e retorna o número de amostras restantes necessárias para completar o processo de inscrição.
+
+#### `app_facenet_main`
+
+```cpp
+void app_facenet_main()
+{
+  face_id_name_init(&st_face_list, FACE_ID_SAVE_NUMBER, ENROLL_CONFIRM_TIMES);
+  aligned_face = dl_matrix3du_alloc(1, FACE_WIDTH, FACE_HEIGHT, 3);
+  read_face_id_from_flash_with_name(&st_face_list);
+}
+```
+Este método inicializa a lista de nomes e IDs de rostos, aloca memória para alinhar as imagens dos rostos e lê os IDs de rostos armazenados na memória flash.
+
+#### `app_mtmn_config`
+
+```cpp
+static inline mtmn_config_t app_mtmn_config()
+{
+  mtmn_config_t mtmn_config = {0};
+  mtmn_config.type = FAST;
+  mtmn_config.min_face = 80;
+  mtmn_config.pyramid = 0.707;
+  mtmn_config.pyramid_times = 4;
+  mtmn_config.p_threshold.score = 0.6;
+  mtmn_config.p_threshold.nms = 0.7;
+  mtmn_config.p_threshold.candidate_number = 20;
+  mtmn_config.r_threshold.score = 0.7;
+  mtmn_config.r_threshold.nms = 0.7;
+  mtmn_config.r_threshold.candidate_number = 10;
+  mtmn_config.o_threshold.score = 0.7;
+  mtmn_config.o_threshold.nms = 0.7;
+  mtmn_config.o_threshold.candidate_number = 1;
+  return mtmn_config;
+}
+```
+Este método configura os parâmetros do modelo de detecção de rostos (mtmn) usados para identificar rostos nas imagens capturadas pela câmera.
+
+#### `handle_message`
+
+```cpp
+void handle_message(WebsocketsClient &client, WebsocketsMessage msg)
+{
+  if (msg.data() == "stream") {
+    g_state = START_STREAM;
+    client.send("STREAMING");
+  }
+  if (msg.data() == "detect") {
+    g_state = START_DETECT;
+    client.send("DETECTING");
+  }
+  if (msg.data().substring(0, 8) == "capture:") {
+    g_state = START_ENROLL;
+    char person[FACE_ID_SAVE_NUMBER * ENROLL_NAME_LEN] = {0,};
+    msg.data().substring(8).toCharArray(person, sizeof(person));
+    memcpy(st_name.enroll_name, person, strlen(person) + 1);
+    client.send("CAPTURING");
+  }
+  if (msg.data() == "recognise") {
+    g_state = START_RECOGNITION;
+    client
+
+.send("RECOGNISING");
+  }
+  if (msg.data().substring(0, 7) == "remove:") {
+    char person[ENROLL_NAME_LEN * FACE_ID_SAVE_NUMBER];
+    msg.data().substring(7).toCharArray(person, sizeof(person));
+    delete_face_id_in_flash_with_name(&st_face_list, person);
+    send_face_list(client); // reset faces in the browser
+  }
+  if (msg.data() == "delete_all") {
+    delete_all_faces(client);
+  }
+}
+```
+Este método manipula mensagens recebidas via WebSockets. Ele altera o estado do sistema com base nas mensagens recebidas, como iniciar transmissão, detectar rostos, capturar rostos para inscrição, reconhecer rostos e remover ou deletar todos os rostos.
+
+#### `open_door`
+
+```cpp
+void open_door(WebsocketsClient &client) {
+  if (digitalRead(led_verde_e_buzzer) == LOW) {
+    digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
+    digitalWrite(pin_relay, LOW); //close (energise) relay so door unlocks
+    Serial.println("Door Unlocked");
+    client.send("door_open");
+    door_opened_millis = millis(); // time relay closed and door opened
+    digitalWrite(led_vermelho, LOW); 
+  }
+}
+```
+Este método é responsável por abrir a porta quando um rosto é reconhecido. Ele ativa o relé e o buzzer verde, envia uma mensagem ao cliente WebSocket e registra o tempo em que a porta foi aberta.
+
+#### `open_door_sem_client`
+
+```cpp
+void open_door_sem_client() {
+  if (digitalRead(led_verde_e_buzzer) == LOW) {
+    digitalWrite(led_verde_e_buzzer, HIGH); //close (energise) relay so door unlocks
+    digitalWrite(pin_relay, LOW); 
+    Serial.println("Door Unlocked");
+    door_opened_millis = millis(); // time relay closed and door opened
+    digitalWrite(led_vermelho, LOW); 
+  }
+}
+```
+Este método é similar ao `open_door`, mas é usado quando o reconhecimento é feito sem a utilização de um cliente WebSocket. Ele também ativa o relé e o buzzer verde, registra o tempo em que a porta foi aberta e desativa o LED vermelho.
+
+---
+
 Este projeto utiliza as bibliotecas `ArduinoWebsockets`, `esp_http_server`, `esp_timer` e `esp_camera` para implementar um sistema de controle de acesso completo e funcional com ESP32.
